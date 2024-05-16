@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-module counter_tb;
+module tb;
 
     // Define testbench signals
     reg tb_clock_in;  // clock input
@@ -8,15 +8,18 @@ module counter_tb;
     reg tb_pause;     // pause signal
     reg tb_adjust;    // adjust signal
     reg tb_select;    // select signal
-    wire tb_clk_2hz, tb_clk_1hz;
+    wire tb_clk_2hz, tb_clk_1hz, tb_clk_fast, tb_clk_blink; 
     wire [5:0] tb_minutes;  // minutes output from counter
     wire [5:0] tb_seconds;  // seconds output from counter
 
     // Instantiate the clock divider
     clk_div clk_div_inst(
         .clock_in(tb_clock_in),
+        .rst(tb_reset),
         .clk_2hz(tb_clk_2hz),
-        .clk_1hz(tb_clk_1hz)
+        .clk_1hz(tb_clk_1hz),
+        .clk_fast(tb_clk_fast),
+        .clk_blink(tb_clk_blink)
         // Additional clock outputs (e.g., clk_fast, clk_blink) can be added if required
     );
 
@@ -48,7 +51,7 @@ module counter_tb;
         #100;         // Wait 100ns for global reset
         
         tb_reset = 0;  // Deassert reset
-        #500000;      // Wait enough time to observe a few seconds counting
+        #990000000;      // Wait enough time to observe a few seconds counting
 
         // Test pausing functionality
         tb_pause = 1;
@@ -69,5 +72,3 @@ module counter_tb;
         #2000000;
         $finish;
     end
-
-endmodule
