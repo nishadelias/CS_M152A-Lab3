@@ -11,7 +11,8 @@ module arbiter (
 );
 
 // Debounced inputs
-wire rst, pause, adj, sel;
+wire pause, adj, sel;
+reg rst;
 
 // Clocks
 wire clk_2hz, clk_1hz, clk_fast, clk_blink;
@@ -24,13 +25,14 @@ reg paused;
 
 // Initialize the pause state
 initial begin
+    rst = 0;
     paused = 0;
 end
 
 // Clock divider module instantiation
 clk_div clk_divider (
     .clock_in(clk),
-    .rst(rst_button),
+    .rst(rst),
     .clk_2hz(clk_2hz),
     .clk_1hz(clk_1hz),
     .clk_fast(clk_fast),
@@ -45,22 +47,22 @@ clk_div clk_divider (
   
 
 // Counter module instantiation
-counter stopwatch_counter (
-    .clk(clk_1hz),
-    .reset(rst_button),
-    .pause(paused),
-    .adjust(adj),
-    .select(sel),
-    .adjust_clk(clk_2hz),
-    .minutes(minutes),
-    .seconds(seconds)
-);
+//counter stopwatch_counter (
+//    .clk(clk_1hz),
+//    .reset(rst),
+//    .pause(paused),
+//    .adjust(adj),
+//    .select(sel),
+//    .adjust_clk(clk_2hz),
+//    .minutes(minutes),
+//    .seconds(seconds)
+//);
 
  //Display multiplexer instantiation
 display display_mux (
-    .clk(clk_fast),
-    .minutes(minutes),
-    .seconds(seconds),
+    .clk_fast(clk_fast),
+    .minutes(6'b001100),
+    .seconds(6'b100111),
     //.blink_en(adj),
     //.blink_clk(clk_blink),
     .Anode_Activate(Anode_Activate),
@@ -70,13 +72,13 @@ display display_mux (
 );
 
 // Handle the pause functionality with a simple state machine
-always @(posedge clk_fast) begin
-    if (rst_button) begin
-        paused <= 0;
-    end else if (pause) begin
-        paused <= ~paused;  // Toggle pause state on button press
-    end
-end
+//always @(posedge clk_fast) begin
+//    if (rst) begin
+//        paused <= 0;
+//    end else if (pause) begin
+//        paused <= ~paused;  // Toggle pause state on button press
+//    end
+//end
 
 endmodule
 
@@ -218,13 +220,13 @@ endmodule
 
 
 module display(
-    input clk,
+    input clk_fast,
     input [5:0] minutes,
     input [5:0] seconds,
 //    .blink_en(adj),
 //    .blink_clk(clk_blink),
-    output reg [6:0] Anode_Activate,
-    output reg [3:0] LED_out
+    output reg [3:0] Anode_Activate,
+    output reg [6:0] LED_out
 //    .seg(seg),
 //    .dp(dp)
 
@@ -234,19 +236,22 @@ module display(
 //    output reg [3:0] Anode_Activate, // anode signals of the 7-segment LED display
 //    output reg [6:0] LED_out// cathode patterns of the 7-segment LED display
     );
-    reg [26:0] one_second_counter; // counter for generating 1 second clock enable
-    wire one_second_enable;// one second enable for counting numbers
-    reg [15:0] displayed_number; // counting number to be displayed
     reg [3:0] LED_BCD;
     reg [19:0] refresh_counter; // 20-bit for creating 10.5ms refresh period or 380Hz refresh rate
              // the first 2 MSB bits for creating 4 LED-activating signals with 2.6ms digit period
-    wire [1:0] LED_activating_counter; 
+    reg [1:0] LED_activating_counter; 
                  // count     0    ->  1  ->  2  ->  3
               // activates    LED1    LED2   LED3   LED4
              // and repeat
+    initial 
+    begin
+    LED_activating_counter = 0;
+    end
     
-   
-    
+    always @(posedge clk_fast) begin
+        LED_activating_counter <= LED_activating_counter + 1;
+    end
+
     // anode activating signals for 4 LEDs, digit period of 2.6ms
     // decoder to generate anode signals 
     always @(*)
@@ -296,4 +301,3 @@ module display(
         endcase
     end
  endmodule
- 
