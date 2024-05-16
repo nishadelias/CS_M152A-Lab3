@@ -28,9 +28,9 @@ initial begin
 end
 
 // Clock divider module instantiation
-clock_divider clk_div (
-    .clk(clk),
-    .rst(rst),
+clk_div clk_divider (
+    .clock_in(clk),
+    .rst(rst_button),
     .clk_2hz(clk_2hz),
     .clk_1hz(clk_1hz),
     .clk_fast(clk_fast),
@@ -38,16 +38,16 @@ clock_divider clk_div (
 );
 
 // Debouncer modules instantiation
-debouncer rst_deb (.clk(clk_fast), .button_in(rst_button), .button_out(rst));
-debouncer pause_deb (.clk(clk_fast), .button_in(pause_button), .button_out(pause));
-debouncer adj_deb (.clk(clk_fast), .switch_in(adj_switch), .switch_out(adj));
-debouncer sel_deb (.clk(clk_fast), .switch_in(sel_switch), .switch_out(sel));
+//debouncer rst_deb (.clk(clk_fast), .button_in(rst_button), .button_out(rst));
+//debouncer pause_deb (.clk(clk_fast), .button_in(pause_button), .button_out(pause));
+//debouncer adj_deb (.clk(clk_fast), .switch_in(adj_switch), .switch_out(adj));
+//debouncer sel_deb (.clk(clk_fast), .switch_in(sel_switch), .switch_out(sel));
   
 
 // Counter module instantiation
 counter stopwatch_counter (
     .clk(clk_1hz),
-    .reset(rst),
+    .reset(rst_button),
     .pause(paused),
     .adjust(adj),
     .select(sel),
@@ -56,27 +56,101 @@ counter stopwatch_counter (
     .seconds(seconds)
 );
 
-// Display multiplexer instantiation
-//display_mux display (
-//    .clk(clk_fast),
-//    .minutes(minutes),
-//    .seconds(seconds),
-//    .blink_en(adj),
-//    .blink_clk(clk_blink),
-//    .an(an),
-//    .seg(seg),
-//    .dp(dp)
-//);
+ //Display multiplexer instantiation
+display display_mux (
+    .clk(clk_fast),
+    .minutes(minutes),
+    .seconds(seconds),
+    //.blink_en(adj),
+    //.blink_clk(clk_blink),
+    .Anode_Activate(Anode_Activate),
+    .LED_out(LED_out)
+    //.seg(seg),
+    //.dp(dp)
+);
 
 // Handle the pause functionality with a simple state machine
 always @(posedge clk_fast) begin
-    if (rst) begin
+    if (rst_button) begin
         paused <= 0;
     end else if (pause) begin
         paused <= ~paused;  // Toggle pause state on button press
     end
 end
 
+endmodule
+
+//MODULES
+module clk_div(
+input clock_in, // 100 MHz master clock, V10 on board
+input rst,
+output clk_2hz,
+output clk_1hz,
+output clk_fast,
+output clk_blink
+);
+ 
+ reg[27:0] counter_2hz=28'd0;
+ reg[27:0] counter_1hz=28'd0;
+ reg[27:0] counter_fast=28'd0;
+ reg[27:0] counter_blink=28'd0;
+ reg clk_2hz_reg;
+ reg clk_1hz_reg;
+ reg clk_fast_reg;
+ reg clk_blink_reg;
+ parameter DIVISOR_2hz = 28'd50000000;
+ parameter DIVISOR_1hz = 28'd100000000;
+ parameter DIVISOR_fast = 28'd200000;
+ parameter DIVISOR_blink = 28'd20000000;
+   
+ // The frequency of the output clk_out =  The frequency of the input clk_in divided by DIVISOR
+ always @(posedge clock_in or posedge rst)
+ begin
+ if (rst)
+ begin
+ //Zero out evertyhing
+counter_2hz <= 0;
+counter_1hz <= 0;
+counter_fast <= 0;
+counter_blink <= 0;
+clk_2hz_reg <= 0;
+clk_1hz_reg <= 0;
+clk_fast_reg <= 0;
+clk_blink_reg <= 0;
+ end
+ 
+ else begin
+  //Increment counters
+  counter_2hz <= counter_2hz + 28'd1;
+  counter_1hz <= counter_1hz + 28'd1;
+  counter_fast <= counter_fast + 28'd1;
+  counter_blink <= counter_blink + 28'd1;
+   
+   // Generate clock outputs based on counters
+   if (counter_2hz == DIVISOR_2hz) begin
+       clk_2hz_reg <= ~clk_2hz;
+       counter_2hz <= 0;
+   end
+   if (counter_1hz == DIVISOR_1hz) begin
+       clk_1hz_reg <= ~clk_1hz;
+       counter_1hz <= 0;
+   end
+   if (counter_fast == DIVISOR_fast) begin
+       clk_fast_reg <= ~clk_fast;
+       counter_fast <= 0;
+   end
+   if (counter_blink == DIVISOR_blink) begin 
+       clk_blink_reg <= ~clk_blink;
+       counter_blink <= 0;
+   end
+ end
+ end
+ 
+ assign clk_2hz = clk_2hz_reg;
+ assign clk_1hz = clk_1hz_reg;
+ assign clk_fast = clk_fast_reg;
+ assign clk_blink = clk_blink_reg;
+ 
 endmodule
 
 
@@ -223,51 +297,3 @@ module display(
     end
  endmodule
  
- module clk_div(
-input clock_in, // 100 MHz master clock, V10 on board
-output reg clk_2hz,
-output reg clk_1hz,
-output reg clk_fast,
-output reg clk_blink
- );
- 
-
- 
-   reg[27:0] counter_2hz=28'd0;
-   reg[27:0] counter_1hz=28'd0;
-   reg[27:0] counter_fast=28'd0;
-   reg[27:0] counter_blink=28'd0;
- parameter DIVISOR_2hz = 28'd50000000;
- parameter DIVISOR_1hz = 28'd100000000;
- parameter DIVISOR_fast = 28'd200000;
- parameter DIVISOR_blink = 28'd14285714;
-   
- // The frequency of the output clk_out =  The frequency of the input clk_in divided by DIVISOR
- always @(posedge clock_in)
- begin
-  //Increment counters
-  counter_2hz <= counter_2hz + 28'd1;
-  counter_1hz <= counter_1hz + 28'd1;
-  counter_fast <= counter_fast + 28'd1;
-  counter_blink <= counter_blink + 28'd1;
-   
-   // Generate clock outputs based on counters
-   if (counter_2hz == DIVISOR_2hz) begin
-       clk_2hz <= ~clk_2hz;
-       counter_2hz <= 0;
-   end
-   if (counter_1hz == DIVISOR_1hz) begin
-       clk_1hz <= ~clk_1hz;
-       counter_1hz <= 0;
-   end
-   if (counter_fast == DIVISOR_fast) begin
-       clk_fast <= ~clk_fast;
-       counter_fast <= 0;
-   end
-   if (counter_blink == DIVISOR_blink) begin 
-       clk_blink <= ~clk_blink;
-       counter_blink <= 0;
-   end
- end
-   
- endmodule
