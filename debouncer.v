@@ -11,7 +11,7 @@ module debouncer (
     button_out = 0;
   end
 
-  always @(*) begin
+  always @(clk) begin
     if (button_in != 1 or count == 3) begin
       count <= 0;
     end else begin
