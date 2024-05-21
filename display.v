@@ -57,7 +57,7 @@ module display(
     // Cathode patterns of the 7-segment LED display 
     always @(*)
     begin
-      if(blink_clk) LED_out = 7'b1111111;
+        if(blink_clk && adjust) LED_out = 7'b1111111;
       else begin
         case(LED_BCD)
         4'b0000: LED_out = 7'b0000001; // "0"     
