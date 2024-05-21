@@ -4,15 +4,14 @@ module arbiter (
     input wire clk,     // master clock
     input wire rst_button,
     input wire pause_button,
-    input wire adj_button,
-    input wire sel_button,
+    input wire adj_switch,
+    input wire sel_switch,
   	output wire [3:0] Anode_Activate,   // for the 7-segment display
   	output wire [6:0] LED_out   // for the 7-segment display
 );
 
 // Debounced inputs
-wire pause, adj, sel;
-reg rst;
+wire pause, adj, sel, rst;
 
 // Clocks
 wire clk_2hz, clk_1hz, clk_fast, clk_blink;
@@ -25,7 +24,6 @@ reg paused;
 
 // Initialize the pause state
 initial begin
-    rst = 0;
     paused = 0;
 end
 
@@ -40,29 +38,29 @@ clk_div clk_divider (
 );
 
 // Debouncer modules instantiation
-//debouncer rst_deb (.clk(clk_fast), .button_in(rst_button), .button_out(rst));
-//debouncer pause_deb (.clk(clk_fast), .button_in(pause_button), .button_out(pause));
-//debouncer adj_deb (.clk(clk_fast), .switch_in(adj_switch), .switch_out(adj));
-//debouncer sel_deb (.clk(clk_fast), .switch_in(sel_switch), .switch_out(sel));
+debouncer rst_deb (.clk(clk_fast), .button_in(rst_button), .button_out(rst));
+debouncer pause_deb (.clk(clk_fast), .button_in(pause_button), .button_out(pause));
+debouncer adj_deb (.clk(clk_fast), .button_in(adj_switch), .button_out(adj));
+debouncer sel_deb (.clk(clk_fast), .button_in(sel_switch), .button_out(sel));
   
 
 // Counter module instantiation
-//counter stopwatch_counter (
-//    .clk(clk_1hz),
-//    .reset(rst),
-//    .pause(paused),
-//    .adjust(adj),
-//    .select(sel),
-//    .adjust_clk(clk_2hz),
-//    .minutes(minutes),
-//    .seconds(seconds)
-//);
+counter stopwatch_counter (
+    .clk(clk_1hz),
+    .reset(rst),
+    .pause(paused),
+    .adjust(adj),
+    .select(sel),
+    .adjust_clk(clk_2hz),
+    .minutes(minutes),
+    .seconds(seconds)
+);
 
- //Display multiplexer instantiation
+ //Display instantiation
 display display_mux (
     .clk_fast(clk_fast),
-    .minutes(6'b001100),
-    .seconds(6'b100111),
+    .minutes(minutes),
+    .seconds(seconds),
     //.blink_en(adj),
     //.blink_clk(clk_blink),
     .Anode_Activate(Anode_Activate),
@@ -166,12 +164,10 @@ module counter (
   output reg [5:0] minutes,
   output reg [5:0] seconds
 );
-  
+
   initial begin
     minutes = 0;
     seconds = 0;
-    
-    
   end
   
   always @(posedge clk or posedge reset) begin
@@ -301,3 +297,31 @@ module display(
         endcase
     end
  endmodule
+ 
+ module debouncer (
+   input clk,
+   input button_in,
+   output reg button_out
+ );
+ 
+   reg [1:0] count;
+   
+   initial begin
+     count = 0;
+     button_out <= 0;
+   end
+ 
+   always @(clk) begin
+     if (button_in != 1 || count == 3) begin
+       count <= 0;
+     end else begin
+       count <= count + 1;
+     end
+     if (count == 3) begin
+       button_out <= 1;
+     end else begin
+       button_out <= 0;
+     end
+   end
+ endmodule
+ 
