@@ -19,14 +19,6 @@ wire clk_2hz, clk_1hz, clk_fast, clk_blink;
 // Counter outputs
 wire [5:0] minutes, seconds;
 
-// state for pause
-reg paused;
-
-// Initialize the pause state
-initial begin
-    paused = 0;
-end
-
 // Clock divider module instantiation
 clk_div clk_divider (
     .clock_in(clk),
@@ -61,22 +53,11 @@ display display_mux (
     .clk_fast(clk_fast),
     .minutes(minutes),
     .seconds(seconds),
-    //.blink_en(adj),
-    //.blink_clk(clk_blink),
+    .adjust(adj),
+    .blink_clk(clk_blink),
     .Anode_Activate(Anode_Activate),
     .LED_out(LED_out)
-    //.seg(seg),
-    //.dp(dp)
 );
-
-// Handle the pause functionality with a simple state machine
-//always @(posedge clk_fast) begin
-//    if (rst) begin
-//        paused <= 0;
-//    end else if (pause) begin
-//        paused <= ~paused;  // Toggle pause state on button press
-//    end
-//end
 
 endmodule
 
@@ -104,7 +85,7 @@ output clk_blink
  parameter DIVISOR_blink = 28'd20000000;
 
  initial begin
-counter_2hz <= 0;
+ counter_2hz <= 0;
  counter_1hz <= 0;
  counter_fast <= 0;
  counter_blink <= 0;
@@ -171,6 +152,9 @@ module counter (
     if (reset) begin
         minutes <= 0;
         seconds <= 0;
+    end else if (pause) begin
+        minutes <= minutes;
+        seconds <= seconds;
     end else if(clk && !adjust) begin
         if (!pause && !adjust) begin
           if (seconds < 59) begin
@@ -187,10 +171,8 @@ module counter (
             end
           end
         end
-    end else begin
-  
-    if (adjust) begin
-     if (select) begin
+    end else if (adjust) begin
+      if (select) begin
         if (seconds < 59) begin
           seconds <= seconds + 1;
         end else begin
@@ -204,7 +186,6 @@ module counter (
         end
       end
     end
-    end
   end
   
 endmodule
@@ -214,12 +195,10 @@ module display(
     input clk_fast,
     input [5:0] minutes,
     input [5:0] seconds,
-//    .blink_en(adj),
-//    .blink_clk(clk_blink),
+    input adjust,
+    input blink_clk,
     output reg [3:0] Anode_Activate,
     output reg [6:0] LED_out
-//    .seg(seg),
-//    .dp(dp)
 
 
 //    input clock_100Mhz, // 100 Mhz clock source on Basys 3 FPGA
