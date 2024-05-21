@@ -102,24 +102,21 @@ output clk_blink
  parameter DIVISOR_1hz = 28'd100000000;
  parameter DIVISOR_fast = 28'd200000;
  parameter DIVISOR_blink = 28'd20000000;
-   
- // The frequency of the output clk_out =  The frequency of the input clk_in divided by DIVISOR
- always @(posedge clock_in or posedge rst)
- begin
- if (rst)
- begin
- //Zero out evertyhing
+
+ initial begin
 counter_2hz <= 0;
-counter_1hz <= 0;
-counter_fast <= 0;
-counter_blink <= 0;
-clk_2hz_reg <= 0;
-clk_1hz_reg <= 0;
-clk_fast_reg <= 0;
-clk_blink_reg <= 0;
+ counter_1hz <= 0;
+ counter_fast <= 0;
+ counter_blink <= 0;
+ clk_2hz_reg <= 0;
+ clk_1hz_reg <= 0;
+ clk_fast_reg <= 0;
+ clk_blink_reg <= 0;
  end
  
- else begin
+ // The frequency of the output clk_out =  The frequency of the input clk_in divided by DIVISOR
+ always @(posedge clock_in)
+begin
   //Increment counters
   counter_2hz <= counter_2hz + 28'd1;
   counter_1hz <= counter_1hz + 28'd1;
@@ -128,22 +125,21 @@ clk_blink_reg <= 0;
    
    // Generate clock outputs based on counters
    if (counter_2hz == DIVISOR_2hz) begin
-       clk_2hz_reg <= ~clk_2hz;
+       clk_2hz_reg <= ~clk_2hz_reg;
        counter_2hz <= 0;
    end
    if (counter_1hz == DIVISOR_1hz) begin
-       clk_1hz_reg <= ~clk_1hz;
+       clk_1hz_reg <= ~clk_1hz_reg;
        counter_1hz <= 0;
    end
    if (counter_fast == DIVISOR_fast) begin
-       clk_fast_reg <= ~clk_fast;
+       clk_fast_reg <= ~clk_fast_reg;
        counter_fast <= 0;
    end
    if (counter_blink == DIVISOR_blink) begin 
-       clk_blink_reg <= ~clk_blink;
+       clk_blink_reg <= ~clk_blink_reg;
        counter_blink <= 0;
    end
- end
  end
  
  assign clk_2hz = clk_2hz_reg;
@@ -170,38 +166,36 @@ module counter (
     seconds = 0;
   end
   
-  always @(posedge clk or posedge reset) begin
+  
+  always @(posedge adjust_clk or posedge reset) begin
     if (reset) begin
-      seconds <= 0;
-      minutes <= 0;
-    
-    end else if (!pause && !adjust) begin
-      if (seconds < 59) begin
-        seconds <= seconds + 1;
-        
-      end else begin
+        minutes <= 0;
         seconds <= 0;
-        if (minutes < 59) begin
-          minutes <= minutes + 1;
-          
-        end else begin
-          minutes <= 0;
-          
+    end else if(clk && !adjust) begin
+        if (!pause && !adjust) begin
+          if (seconds < 59) begin
+            seconds <= seconds + 1;
+            
+          end else begin
+            seconds <= 0;
+            if (minutes < 59) begin
+              minutes <= minutes + 1;
+              
+            end else begin
+              minutes <= 0;
+              
+            end
+          end
         end
-      end
-    end
-  end
+    end else begin
   
-  
-  always @(posedge adjust_clk) begin
-    if (!reset && adjust) begin
-      if (select) begin
+    if (adjust) begin
+     if (select) begin
         if (seconds < 59) begin
           seconds <= seconds + 1;
         end else begin
           seconds <= 0;
         end
-        
       end else begin
         if (minutes < 59) begin
           minutes <= minutes + 1;
@@ -209,6 +203,7 @@ module counter (
           minutes <= 0;
         end
       end
+    end
     end
   end
   
@@ -311,12 +306,13 @@ module display(
      button_out <= 0;
    end
  
-   always @(clk) begin
-     if (button_in != 1 || count == 3) begin
+   always @(posedge clk) begin
+     if (button_in != 1) begin
        count <= 0;
-     end else begin
+     end else if (count != 3) begin
        count <= count + 1;
      end
+     
      if (count == 3) begin
        button_out <= 1;
      end else begin
@@ -324,4 +320,6 @@ module display(
      end
    end
  endmodule
+ 
+ 
  
