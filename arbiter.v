@@ -19,6 +19,14 @@ wire clk_2hz, clk_1hz, clk_fast, clk_blink;
 // Counter outputs
 wire [5:0] minutes, seconds;
 
+// state for pause
+reg paused;
+
+// Initialize the pause state
+initial begin
+    paused = 0;
+end
+
 // Clock divider module instantiation
 clk_div clk_divider (
     .clock_in(clk),
@@ -54,10 +62,16 @@ display display_mux (
     .minutes(minutes),
     .seconds(seconds),
     .adjust(adj),
+    .select(sel),
     .blink_clk(clk_blink),
     .Anode_Activate(Anode_Activate),
     .LED_out(LED_out)
 );
+
+// Handle the pause functionality with a simple state machine
+always @(posedge pause) begin
+        paused <= ~paused;  // Toggle pause state on button press
+end
 
 endmodule
 
@@ -79,13 +93,17 @@ output clk_blink
  reg clk_1hz_reg;
  reg clk_fast_reg;
  reg clk_blink_reg;
- parameter DIVISOR_2hz = 28'd50000000;
- parameter DIVISOR_1hz = 28'd100000000;
- parameter DIVISOR_fast = 28'd200000;
- parameter DIVISOR_blink = 28'd20000000;
+ parameter DIVISOR_2hz = 28'd25000000;
+ parameter DIVISOR_1hz = 28'd50000000;
+ parameter DIVISOR_fast = 28'd100000;
+ parameter DIVISOR_blink = 28'd10000000;
+// parameter DIVISOR_2hz = 28'd5;
+// parameter DIVISOR_1hz = 28'd10;
+// parameter DIVISOR_fast = 28'd2;
+// parameter DIVISOR_blink = 28'd2;
 
  initial begin
- counter_2hz <= 0;
+counter_2hz <= 0;
  counter_1hz <= 0;
  counter_fast <= 0;
  counter_blink <= 0;
@@ -141,53 +159,45 @@ module counter (
   output reg [5:0] minutes,
   output reg [5:0] seconds
 );
+    wire selected_clk;
+  assign selected_clk = (!adjust) ? clk : adjust_clk;
 
   initial begin
     minutes = 0;
     seconds = 0;
   end
   
-  
-  always @(posedge adjust_clk or posedge reset) begin
-    if (reset) begin
-        minutes <= 0;
+  always@(posedge selected_clk or posedge reset) begin
+    if(reset) begin
+      minutes <= 0;
+      seconds <= 0;
+      
+    end else if (!adjust && !pause) begin
+    
+      if(seconds < 59) seconds <= seconds+1;
+      else begin
         seconds <= 0;
-    end else if (pause) begin
-        minutes <= minutes;
-        seconds <= seconds;
-    end else if(clk && !adjust) begin
-        if (!pause && !adjust) begin
-          if (seconds < 59) begin
-            seconds <= seconds + 1;
-            
-          end else begin
-            seconds <= 0;
-            if (minutes < 59) begin
-              minutes <= minutes + 1;
-              
-            end else begin
-              minutes <= 0;
-              
-            end
-          end
-        end
-    end else if (adjust) begin
-      if (select) begin
-        if (seconds < 59) begin
-          seconds <= seconds + 1;
-        end else begin
-          seconds <= 0;
-        end
-      end else begin
-        if (minutes < 59) begin
-          minutes <= minutes + 1;
-        end else begin
-          minutes <= 0;
+        if(minutes < 59) minutes <= minutes + 1;
+        else begin
+          minutes <=0;
         end
       end
-    end
+      
+    end else if (adjust && !pause) begin
+      //Check select pin
+      if(select) begin
+        //Increment minutes
+        if(minutes < 59) minutes <= minutes + 1;
+        else begin
+          minutes <=0;
+        end
+      end else begin
+        //Increment seconds
+        if(seconds < 59) seconds <= seconds+1;
+      	else seconds <= 0;
+      end  
+    end  
   end
-  
 endmodule
 
 
@@ -196,15 +206,10 @@ module display(
     input [5:0] minutes,
     input [5:0] seconds,
     input adjust,
+    input select,
     input blink_clk,
     output reg [3:0] Anode_Activate,
     output reg [6:0] LED_out
-
-
-//    input clock_100Mhz, // 100 Mhz clock source on Basys 3 FPGA
-//    input reset, // reset
-//    output reg [3:0] Anode_Activate, // anode signals of the 7-segment LED display
-//    output reg [6:0] LED_out// cathode patterns of the 7-segment LED display
     );
     reg [3:0] LED_BCD;
     reg [19:0] refresh_counter; // 20-bit for creating 10.5ms refresh period or 380Hz refresh rate
@@ -217,7 +222,7 @@ module display(
     begin
     LED_activating_counter = 0;
     end
-    
+  	
     always @(posedge clk_fast) begin
         LED_activating_counter <= LED_activating_counter + 1;
     end
@@ -252,24 +257,82 @@ module display(
             // the fourth digit of the 16-bit number    
                end
         endcase
+        
+        if(blink_clk && adjust)begin
+                if(select && ( Anode_Activate == 4'b0111 || Anode_Activate == 4'b1011)) 
+                    begin
+                     LED_out = 7'b1111111;
+                    end
+                else if(!select && (Anode_Activate == 4'b1101 || Anode_Activate == 4'b1110))
+                    begin
+                        LED_out = 7'b1111111;
+                        $display(select);
+
+                    end
+           
+                
+              else begin
+                case(LED_BCD)
+                4'b0000: LED_out = 7'b0000001; // "0"     
+                4'b0001: LED_out = 7'b1001111; // "1" 
+                4'b0010: LED_out = 7'b0010010; // "2" 
+                4'b0011: LED_out = 7'b0000110; // "3" 
+                4'b0100: LED_out = 7'b1001100; // "4" 
+                4'b0101: LED_out = 7'b0100100; // "5" 
+                4'b0110: LED_out = 7'b0100000; // "6" 
+                4'b0111: LED_out = 7'b0001111; // "7" 
+                4'b1000: LED_out = 7'b0000000; // "8"     
+                4'b1001: LED_out = 7'b0000100; // "9" 
+                default: LED_out = 7'b0000001; // "0"
+                endcase
+              end
+            end else begin
+                            case(LED_BCD)
+                            4'b0000: LED_out = 7'b0000001; // "0"     
+                            4'b0001: LED_out = 7'b1001111; // "1" 
+                            4'b0010: LED_out = 7'b0010010; // "2" 
+                            4'b0011: LED_out = 7'b0000110; // "3" 
+                            4'b0100: LED_out = 7'b1001100; // "4" 
+                            4'b0101: LED_out = 7'b0100100; // "5" 
+                            4'b0110: LED_out = 7'b0100000; // "6" 
+                            4'b0111: LED_out = 7'b0001111; // "7" 
+                            4'b1000: LED_out = 7'b0000000; // "8"     
+                            4'b1001: LED_out = 7'b0000100; // "9" 
+                            default: LED_out = 7'b0000001; // "0"
+                            endcase
+                          end
     end
     // Cathode patterns of the 7-segment LED display 
-    always @(*)
-    begin
-        case(LED_BCD)
-        4'b0000: LED_out = 7'b0000001; // "0"     
-        4'b0001: LED_out = 7'b1001111; // "1" 
-        4'b0010: LED_out = 7'b0010010; // "2" 
-        4'b0011: LED_out = 7'b0000110; // "3" 
-        4'b0100: LED_out = 7'b1001100; // "4" 
-        4'b0101: LED_out = 7'b0100100; // "5" 
-        4'b0110: LED_out = 7'b0100000; // "6" 
-        4'b0111: LED_out = 7'b0001111; // "7" 
-        4'b1000: LED_out = 7'b0000000; // "8"     
-        4'b1001: LED_out = 7'b0000100; // "9" 
-        default: LED_out = 7'b0000001; // "0"
-        endcase
-    end
+//    always @(*)
+//    begin
+//        if(blink_clk && adjust)begin
+//        if(select && ( Anode_Activate == 4'b0111 || Anode_Activate == 4'b1011)) 
+//            begin
+//             LED_out = 7'b1111111;
+//            end
+//        else if(!select && (Anode_Activate == 4'b1101 || Anode_Activate == 4'b1110))
+//            begin
+//                LED_out = 7'b1111111;
+//            end
+//       end
+   
+        
+//      else begin
+//        case(LED_BCD)
+//        4'b0000: LED_out = 7'b0000001; // "0"     
+//        4'b0001: LED_out = 7'b1001111; // "1" 
+//        4'b0010: LED_out = 7'b0010010; // "2" 
+//        4'b0011: LED_out = 7'b0000110; // "3" 
+//        4'b0100: LED_out = 7'b1001100; // "4" 
+//        4'b0101: LED_out = 7'b0100100; // "5" 
+//        4'b0110: LED_out = 7'b0100000; // "6" 
+//        4'b0111: LED_out = 7'b0001111; // "7" 
+//        4'b1000: LED_out = 7'b0000000; // "8"     
+//        4'b1001: LED_out = 7'b0000100; // "9" 
+//        default: LED_out = 7'b0000001; // "0"
+//        endcase
+//      end
+//    end
  endmodule
  
  module debouncer (
@@ -299,6 +362,5 @@ module display(
      end
    end
  endmodule
- 
  
  
