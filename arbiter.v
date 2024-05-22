@@ -340,8 +340,9 @@ module display(
    input button_in,
    output reg button_out
  );
- 
-   reg [1:0] count;
+     
+    reg [1:0] count;
+    parameter DEBOUNCE_THRESHOLD = 3;
    
    initial begin
      count = 0;
@@ -349,17 +350,15 @@ module display(
    end
  
    always @(posedge clk) begin
-     if (button_in != 1) begin
-       count <= 0;
-     end else if (count != 3) begin
-       count <= count + 1;
-     end
-     
-     if (count == 3) begin
-       button_out <= 1;
-     end else begin
-       button_out <= 0;
-     end
+       if (button_in == button_out) begin
+           count <= 0;
+       end else begin
+           count <= debounce_counter + 1;
+           if (debounce_counter >= DEBOUNCE_THRESHOLD) begin
+               button_out <= button_in;
+               count <= 0;
+           end
+       end
    end
  endmodule
  
